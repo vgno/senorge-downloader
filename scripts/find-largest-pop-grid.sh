@@ -22,13 +22,19 @@ function main() {
 	create_ssb_db
 
 	# # https://kartkatalog.geonorge.no/metadata/befolkning-paa-rutenett-1000-m-2019/fab7c42f-9eb1-4eab-8984-ffd744c86343
-	curl -O https://nedlasting.geonorge.no/geonorge/Befolkning/BefolkningsstatistikkRutenett1km2019/GML/Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML.zip
-	unzip Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML.zip
+
+	pop_grid_file="Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML"
+
+	if [[ ! -f "$pop_grid_file.gml" ]];
+	then
+		curl -O https://nedlasting.geonorge.no/geonorge/Befolkning/BefolkningsstatistikkRutenett1km2019/GML/Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML.zip
+		unzip "$pop_grid_file.zip"
+	fi
 
 	ogr2ogr \
 		-f postgresql \
 		"PG:host=localhost dbname=$DB_NAME" \
-		"Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML.gml" \
+		"$pop_grid_file.gml" \
 		"BefolkningPåRuter1km" \
 		-nln befolkning1x1 \
 		-forceNullable \
@@ -65,26 +71,29 @@ function main() {
 
 	# consider only cells that are fully within a municipality
 	pexec "
+		DROP TABLE IF EXISTS muni_cells;
+		CREATE TABLE muni_cells AS
+			WITH a AS (
+				SELECT
+					*,
+					count(*) OVER (PARTITION BY ssbid) AS muni_count
+				FROM
+					pop_grid_fixed
+			)
+			SELECT
+				*,
+				/* use ROW_NUMBER instead of RANK to avoid duplicates when two cells are tied */
+				ROW_NUMBER() OVER (PARTITION BY kommunekode ORDER BY population DESC) AS rank
+			FROM
+				a
+			WHERE
+				muni_count = 1
+	"
+
+	pexec "
 		DROP TABLE IF EXISTS central_cells;
 		CREATE TABLE central_cells AS
-			WITH b AS (
-				WITH a AS (
-						SELECT
-							*,
-							count(*) OVER (PARTITION BY ssbid) AS muni_count
-						FROM
-							pop_grid_fixed
-					)
-					SELECT
-						*,
-						/* use ROW_NUMBER instead of RANK to avoid duplicates when two cells are tied */
-						ROW_NUMBER() OVER (PARTITION BY kommunekode ORDER BY population DESC) AS rank
-					FROM
-						a
-					WHERE
-						muni_count = 1
-				)
-				SELECT * FROM b WHERE rank = 1
+		SELECT * FROM muni_cells WHERE rank = 1
 	"
 
 	pexec "
@@ -138,11 +147,19 @@ function main() {
 		done
 	done
 
+	mkdir -p "${PROJECT_DIR}/data/geo"
+
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/storste-km2-per-kommune-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
 		-sql "select population, ssbid, kommunekode, kommunenavn, geom from central_cells"
+
+	ogr2ogr \
+		-f GeoJSON \
+		"${PROJECT_DIR}/data/geo/muni-cells-utm33.geojson" \
+		"PG:host=localhost dbname=${DB_NAME}" \
+		-sql "select population, ssbid, kommunekode, kommunenavn, rank, geom from muni_cells"
 
 	ogr2ogr \
 		-f GeoJSON \

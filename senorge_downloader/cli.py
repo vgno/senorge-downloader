@@ -158,7 +158,7 @@ def convert_to_csv(input_dir: Path, output_dir: Path):
         convert_file(file, output_dir)
 
 
-def vg_format(input_dir: Path, output_dir: Path, type: Literal["maps", "timeseries"]):
+def vg_format(input_dir: Path, output_dir: Path, type: Literal["maps", "timeseries", "normals"]):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     files = list(input_dir.glob("*.csv"))

@@ -8,6 +8,10 @@ This code downloads NetCDF files from [MET](https://thredds.met.no/) and convert
 	poetry shell
 	poetry install
 
+## System requirements
+
+The dataset is about 150 GB and some of the steps are memory intensive. We recommend at least 32 GB of RAM.
+
 
 ## Usage
 
@@ -57,7 +61,7 @@ scripts/find-largest-pop-grid.sh
 
 **4. Build VG-formatted outputs**
 
-NB. You need PostgreSQL with n50 data with kommuner_uten_hav from our election maps to complete this step.
+NB. You need PostgreSQL with n50 data with kommuner_uten_hav from our election maps to complete the `vg-maps` and step.
 
 We create the following outputs:
 
