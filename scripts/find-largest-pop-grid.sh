@@ -154,22 +154,27 @@ function main() {
 
 	mkdir -p "${PROJECT_DIR}/data/geo"
 
+	coordinate_precision=5
+
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/storste-km2-per-kommune-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select population, ssbid, kommunekode, kommunenavn, st_transform(geom, 25833) as geom from central_cells"
 
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/muni-cells-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select population, ssbid, kommunekode, kommunenavn, rank, st_transform(geom, 25833) as geom from muni_cells"
 
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/kommuner-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select LPAD(kommunenummer::text, 4, '0') as kommunekode, navn as kommunenavn, st_transform(område, 25833) as geom from kommuner"
 
 
@@ -177,18 +182,21 @@ function main() {
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/storste-km2-per-kommune-4326.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select population, ssbid, kommunekode, kommunenavn, st_transform(geom, 4326) as geom from central_cells"
 
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/central-points-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select kommunekode, kommunenavn, point_type, distance, bearing, st_transform(geom, 25833) as geom from central_points"
 
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/central-points-4326.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select kommunekode, kommunenavn, point_type, distance, bearing, st_transform(geom, 4326) as geom from central_points"
 }
 
