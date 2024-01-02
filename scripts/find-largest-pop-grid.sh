@@ -3,13 +3,13 @@
 set -e
 set -x
 
-DB_NAME="ssb_grid_tmp"
+POP_YEAR="2023"
+DB_NAME="ssb_grid_tmp_${POP_YEAR}"
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_DIR="$(dirname "$DIR")"
 
-
 function pexec() {
-  echo "$*" | time psql -X -v ON_ERROR_STOP=1 "ssb_grid_tmp"
+  echo "$*" | time psql -X -v ON_ERROR_STOP=1 "$DB_NAME"
 }
 
 function create_ssb_db() {
@@ -23,19 +23,22 @@ function main() {
 
 	# # https://kartkatalog.geonorge.no/metadata/befolkning-paa-rutenett-1000-m-2019/fab7c42f-9eb1-4eab-8984-ffd744c86343
 
-	pop_grid_file="Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML"
+	local pop_grid_file
+	local layer_name
+
+	pop_grid_file="befolkning_2023"
+	layer_name="layer_337"
 
 	if [[ ! -f "$pop_grid_file.gml" ]];
 	then
-		curl -O https://nedlasting.geonorge.no/geonorge/Befolkning/BefolkningsstatistikkRutenett1km2019/GML/Befolkning_0000_Norge_25833_BefolkningsstatistikkRutenett1km2019_GML.zip
-		unzip "$pop_grid_file.zip"
+		curl -o "$pop_grid_file.gml" "https://ogc.ssb.no/wms.ashx?service=WFS&version=1.1.0&request=GetFeature&typename=layer_337&outputformat=GML3"
 	fi
 
 	ogr2ogr \
 		-f postgresql \
 		"PG:host=localhost dbname=$DB_NAME" \
 		"$pop_grid_file.gml" \
-		"BefolkningPåRuter1km" \
+		"$layer_name" \
 		-nln befolkning1x1 \
 		-forceNullable \
 		--config PG_USE_COPY YES
@@ -52,21 +55,23 @@ function main() {
 		--config OGR_WFS_PAGE_SIZE 1000 \
 		--config PG_USE_COPY YES \
 		-makevalid \
-		-nlt PROMOTE_TO_MULTI
+		-nlt PROMOTE_TO_MULTI \
+		-skipfailures
+
 
 	pexec "
 		DROP TABLE IF EXISTS pop_grid_fixed;
 
 		CREATE TABLE pop_grid_fixed AS
 		SELECT
-			befolkning1x1.poptot as population,
-			befolkning1x1.ssbid1000m as ssbid,
+			befolkning1x1.pop_tot as population,
+			befolkning1x1.ssbid_1000m as ssbid,
 			LPAD(kommunenummer::text, 4, '0') as kommunekode,
 			navn[1] as kommunenavn,
-			befolkning1x1.område as geom
+			befolkning1x1.msgeometry as geom
 		FROM befolkning1x1
-		INNER JOIN kommuner ON st_intersects(st_transform(kommuner.område, 25833), befolkning1x1.område)
-		WHERE poptot is not null;
+		INNER JOIN kommuner ON st_intersects(st_transform(kommuner.område, 32633), befolkning1x1.msgeometry)
+		WHERE befolkning1x1.pop_tot is not null;
 	"
 
 	# consider only cells that are fully within a municipality
@@ -153,13 +158,13 @@ function main() {
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/storste-km2-per-kommune-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
-		-sql "select population, ssbid, kommunekode, kommunenavn, geom from central_cells"
+		-sql "select population, ssbid, kommunekode, kommunenavn, st_transform(geom, 25833) as geom from central_cells"
 
 	ogr2ogr \
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/muni-cells-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
-		-sql "select population, ssbid, kommunekode, kommunenavn, rank, geom from muni_cells"
+		-sql "select population, ssbid, kommunekode, kommunenavn, rank, st_transform(geom, 25833) as geom from muni_cells"
 
 	ogr2ogr \
 		-f GeoJSON \
@@ -178,7 +183,7 @@ function main() {
 		-f GeoJSON \
 		"${PROJECT_DIR}/data/geo/central-points-utm33.geojson" \
 		"PG:host=localhost dbname=${DB_NAME}" \
-		-sql "select kommunekode, kommunenavn, point_type, distance, bearing, geom from central_points"
+		-sql "select kommunekode, kommunenavn, point_type, distance, bearing, st_transform(geom, 25833) as geom from central_points"
 
 	ogr2ogr \
 		-f GeoJSON \
