@@ -325,14 +325,19 @@ def mean_by_muni(file: Path, muni_cells: gpd.GeoDataFrame):
     return result
 
 
+# silly cloudfront
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 def vg_comparisons(output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     # # https://www.epa.gov/climate-indicators/climate-change-indicators-us-and-global-temperature
+    logger.info(f"Fetching EPA temperature")
 
     epa_temp = pd.read_csv(
         "https://www.epa.gov/system/files/other-files/2022-07/temperature_fig-2.csv",
         encoding="ISO-8859-1",
         skiprows=6,
+        storage_options = {'User-Agent': USER_AGENT}
     ).rename(columns={"Earth's surface (land and ocean)": "value", "Year": "year"})
 
     epa_temp["type"] = "temperature"
@@ -341,10 +346,13 @@ def vg_comparisons(output_dir: Path):
     epa_temp = epa_temp[["year", "type", "value"]]
     epa_temp = epa_temp[epa_temp["year"] >= 1957]
 
+    logger.info(f"Fetching EPA precipitation")
+
     epa_precip = pd.read_csv(
         "https://www.epa.gov/system/files/other-files/2022-07/precipitation_fig-2.csv",
         encoding="ISO-8859-1",
         skiprows=6,
+        storage_options = {'User-Agent': USER_AGENT}
     )
 
     epa_precip.columns = epa_precip.columns.str.strip()
@@ -400,6 +408,7 @@ def vg_comparisons(output_dir: Path):
     for proj in proj_vars:
         for scenario in scenarios:
             for area in areas:
+                print(f"Fetching predictions for {proj} {scenario} {area['name']}")
                 url = f"https://prod.kss-backend.met.no/climateProjections?climateIndex={proj}&period=Annual&area={area['value']}&scenario={scenario}"
 
                 print(url)
