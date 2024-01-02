@@ -158,16 +158,18 @@ def convert_to_csv(input_dir: Path, output_dir: Path):
         convert_file(file, output_dir)
 
 
-def vg_format(input_dir: Path, output_dir: Path, type: Literal["maps", "timeseries", "normals"]):
+def vg_format(
+    input_dir: Path, output_dir: Path, type: Literal["maps", "timeseries", "normals"]
+):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     files = list(input_dir.glob("*.csv"))
 
     if type == "timeseries":
-        muni_centers = gpd.read_file("./data/geo/storste-km2-per-kommune-utm33.geojson")
-        assert muni_centers.crs == EXPECTED_CRS
+        muni_cells = gpd.read_file("./data/geo/muni-cells-utm33.geojson")
+        assert muni_cells.crs == EXPECTED_CRS
 
-        build_muni_timeseries(files, output_dir, muni_centers)
+        build_muni_timeseries(files, output_dir, muni_cells)
     elif type == "maps":
         muni_areas = gpd.read_file("./data/geo/kommuner-2021-uten-hav-utm33.geojson")
         assert muni_areas.crs == EXPECTED_CRS
@@ -191,10 +193,10 @@ def vg_format(input_dir: Path, output_dir: Path, type: Literal["maps", "timeseri
 
 
 def build_muni_timeseries(
-    input_files: List[Path], output_dir: Path, muni_centers: gpd.GeoDataFrame
+    input_files: List[Path], output_dir: Path, muni_cells: gpd.GeoDataFrame
 ):
     datasets = process_map(
-        partial(mean_by_muni, muni_centers=muni_centers),
+        partial(mean_by_muni, muni_cells=muni_cells),
         input_files,
         max_workers=os.cpu_count(),
     )
@@ -207,7 +209,9 @@ def build_muni_timeseries(
 
         logger.info(f"Writing {out}")
 
-        combined[combined.index == muni_code][["type", "year", "value"]].sort_values(
+        cols = ["type", "year", "value"]
+
+        combined[combined.index == muni_code][cols].sort_values(
             ["type", "year"]
         ).to_csv(out, index=False)
 
@@ -284,33 +288,41 @@ def build_map_summaries(
     return cleaned[cols]
 
 
-def mean_by_muni(file: Path, muni_centers: gpd.GeoDataFrame):
+def mean_by_muni(file: Path, muni_cells: gpd.GeoDataFrame):
     logger.info(f"Finding intersects in {file}")
 
-    dat = pd.read_csv(file)
+    dat = pd.read_csv(file, dtype={"year": str})
 
     geo = gpd.GeoDataFrame(
         data=dat,
         geometry=gpd.points_from_xy(dat["x"], dat["y"]),
-        crs=muni_centers.crs,
+        crs=muni_cells.crs,
         copy=False,
     )  # type: ignore
 
-    # filter out all but the most densely populated grid cells
+    # we find the first intersecting cell for each municipality that has a non-na value
 
-    # for snow, we have 4 points that intersect with the SSB grid (each corner), so we take an average of those
-    # for temperature / precipitation the data point is in the center of each SSB grid cell
+    muni_dat = muni_cells.sjoin(geo, how="left", predicate="intersects").reset_index()
+    muni_dat = muni_dat.sort_values(by=["kommunekode", "year", "rank"])
 
-    muni_dat = (
-        muni_centers.sjoin(geo, how="left", predicate="intersects")
-        .groupby(["year", "type", "kommunekode", "kommunenavn"])
-        .agg(value=("value", "mean"))
-    ).reset_index()
+    def first_non_na(x):
+        result = x[x["value"].notna()].head(1)
 
-    muni_dat["value"] = muni_dat["value"].round(4)
-    muni_dat["year"] = muni_dat["year"].astype(str)
+        if result.empty:
+            return x.head(1)
 
-    return muni_dat
+        return result
+
+    result = (
+        muni_dat.groupby(["year", "type", "kommunekode", "kommunenavn"])
+        .apply(first_non_na)
+        .reset_index(drop=True)
+    )
+
+    result["value"] = result["value"].round(4)
+    result["year"] = result["year"].astype(str)
+
+    return result
 
 
 def vg_comparisons(output_dir: Path):
