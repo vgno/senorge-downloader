@@ -58,6 +58,20 @@ function main() {
 		-nlt PROMOTE_TO_MULTI \
 		-skipfailures
 
+	ogr2ogr \
+		-f postgresql \
+		"PG:host=localhost dbname=${DB_NAME}" \
+		"WFS:https://wfs.geonorge.no/skwms1/wfs.administrative_enheter?&service=WFS&acceptversions=2.0.0&request=GetCapabilities" \
+		app:Fylke \
+		-nln fylker \
+		-forceNullable \
+		--config OGR_WFS_PAGING_ALLOWED ON \
+		--config OGR_WFS_PAGE_SIZE 1000 \
+		--config PG_USE_COPY YES \
+		-makevalid \
+		-nlt PROMOTE_TO_MULTI \
+		-skipfailures
+
 
 	pexec "
 		DROP TABLE IF EXISTS pop_grid_fixed;
