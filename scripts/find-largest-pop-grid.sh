@@ -81,8 +81,12 @@ function main() {
 			befolkning1x1.pop_tot as population,
 			befolkning1x1.ssbid_1000m as ssbid,
 			LPAD(kommunenummer::text, 4, '0') as kommunekode,
-			navn[1] as kommunenavn,
-			befolkning1x1.msgeometry as geom
+			befolkning1x1.msgeometry as geom,
+			CASE
+				WHEN kommuner.språk[1] = 'nor' THEN navn[1]
+				WHEN kommuner.språk[2] = 'nor' THEN navn[2]
+				ELSE navn[1]
+			END as kommunenavn
 		FROM befolkning1x1
 		INNER JOIN kommuner ON st_intersects(st_transform(kommuner.område, 32633), befolkning1x1.msgeometry)
 		WHERE befolkning1x1.pop_tot is not null;
