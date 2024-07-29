@@ -23,11 +23,8 @@ function main() {
 
 	# # https://kartkatalog.geonorge.no/metadata/befolkning-paa-rutenett-1000-m-2019/fab7c42f-9eb1-4eab-8984-ffd744c86343
 
-	local pop_grid_file
-	local layer_name
-
-	pop_grid_file="befolkning_2023"
-	layer_name="layer_337"
+	local pop_grid_file="befolkning_2023"
+	local layer_name="layer_337"
 
 	if [[ ! -f "$pop_grid_file.gml" ]];
 	then
@@ -42,7 +39,6 @@ function main() {
 		-nln befolkning1x1 \
 		-forceNullable \
 		--config PG_USE_COPY YES
-
 
 	ogr2ogr \
 		-f postgresql \
@@ -79,6 +75,9 @@ function main() {
 		CREATE TABLE pop_grid_fixed AS
 		SELECT
 			befolkning1x1.pop_tot as population,
+			befolkning1x1.pop_ave2 as average_age,
+			befolkning1x1.pop_mal as population_male,
+			befolkning1x1.pop_fem as population_female,
 			befolkning1x1.ssbid_1000m as ssbid,
 			LPAD(kommunenummer::text, 4, '0') as kommunekode,
 			befolkning1x1.msgeometry as geom,
@@ -187,6 +186,14 @@ function main() {
 		"PG:host=localhost dbname=${DB_NAME}" \
 		-lco COORDINATE_PRECISION=${coordinate_precision} \
 		-sql "select population, ssbid, kommunekode, kommunenavn, rank, st_transform(geom, 25833) as geom from muni_cells"
+
+
+	ogr2ogr \
+		-f GeoJSON \
+		"${PROJECT_DIR}/data/geo/top-muni-points-4326.geojson" \
+		"PG:host=localhost dbname=${DB_NAME}" \
+		-lco COORDINATE_PRECISION=${coordinate_precision} \
+		-sql "select population, ssbid, kommunekode, kommunenavn, rank, st_transform(st_centroid(geom), 4326) as geom from muni_cells where rank <= 10"
 
 	ogr2ogr \
 		-f GeoJSON \

@@ -158,6 +158,13 @@ def convert_to_csv(input_dir: Path, output_dir: Path):
         convert_file(file, output_dir)
 
 
+def read_muni_areas() -> gpd.GeoDataFrame:
+    muni_areas = gpd.read_file("./data/geo/kommuner-2021-uten-hav-utm33.geojson")
+    assert muni_areas.crs == EXPECTED_CRS
+
+    return muni_areas
+
+
 def vg_format(
     input_dir: Path, output_dir: Path, type: Literal["maps", "timeseries", "normals"]
 ):
@@ -171,8 +178,7 @@ def vg_format(
 
         build_muni_timeseries(files, output_dir, muni_cells)
     elif type == "maps":
-        muni_areas = gpd.read_file("./data/geo/kommuner-2021-uten-hav-utm33.geojson")
-        assert muni_areas.crs == EXPECTED_CRS
+        muni_areas = read_muni_areas()
 
         build_map_summaries(
             files=files,
@@ -181,8 +187,7 @@ def vg_format(
             comparison_years=[2013, 2022],
         ).to_csv(output_dir / "map-diffs.csv", index=False, header=True)
     elif type == "normals":
-        muni_areas = gpd.read_file("./data/geo/kommuner-2021-uten-hav-utm33.geojson")
-        assert muni_areas.crs == EXPECTED_CRS
+        muni_areas = read_muni_areas()
 
         build_map_summaries(
             files=files,
@@ -328,6 +333,7 @@ def mean_by_muni(file: Path, muni_cells: gpd.GeoDataFrame):
 # silly cloudfront
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+
 def vg_comparisons(output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     # # https://www.epa.gov/climate-indicators/climate-change-indicators-us-and-global-temperature
@@ -337,7 +343,7 @@ def vg_comparisons(output_dir: Path):
         "https://www.epa.gov/system/files/other-files/2022-07/temperature_fig-2.csv",
         encoding="ISO-8859-1",
         skiprows=6,
-        storage_options = {'User-Agent': USER_AGENT}
+        storage_options={"User-Agent": USER_AGENT},
     ).rename(columns={"Earth's surface (land and ocean)": "value", "Year": "year"})
 
     epa_temp["type"] = "temperature"
@@ -352,7 +358,7 @@ def vg_comparisons(output_dir: Path):
         "https://www.epa.gov/system/files/other-files/2022-07/precipitation_fig-2.csv",
         encoding="ISO-8859-1",
         skiprows=6,
-        storage_options = {'User-Agent': USER_AGENT}
+        storage_options={"User-Agent": USER_AGENT},
     )
 
     epa_precip.columns = epa_precip.columns.str.strip()
