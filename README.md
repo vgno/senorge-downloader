@@ -4,9 +4,7 @@ This code downloads NetCDF files from [MET](https://thredds.met.no/) and convert
 
 ## Setup the project
 
-	pip install -U poetry
-	poetry shell
-	poetry install
+	uv sync
 
 ## System requirements
 
@@ -26,13 +24,13 @@ We currently fetch three both `seNorge` and `seNorge_snow` datasets. We are inte
 * `sd`: Gridded snow depth by day (used to calculate snow and ski days)
 
 ```shell
-poetry run senorge download -output ./data/raw
+uv run senorge download -output ./data/raw
 ```
 
 You can also download a single variable:
 
 ```shell
-poetry run senorge download -output ./data/raw -variable tg
+uv run senorge download -output ./data/raw -variable tg
 ```
 
 **2. Convert NetCDF to CSV**
@@ -48,7 +46,7 @@ We resample the daily data to yearly, so that we end up with the following data 
 * count snow days (depth > 5 cm)
 
 ```shell
-poetry run senorge csv -input ./data/raw -output ./data/csv
+uv run senorge csv -input ./data/raw -output ./data/csv
 ```
 
 **3. Find the largest grid cell in each municipality**
@@ -77,10 +75,9 @@ We create the following outputs:
 5. Top lists of changes
 
 ```shell
-poetry run senorge vg-timeseries -input ./data/csv -output ./data/vg
-poetry run senorge vg-maps -input ./data/csv -output ./data/vg
-poetry run senorge vg-comparisons -output ./data/vg
-poetry run senorge vg-top-lists -output ./data/vg
+uv run senorge vg-timeseries -input ./data/csv -output ./data/vg
+uv run senorge vg-maps -input ./data/csv -output ./data/vg
+uv run senorge vg-comparisons -output ./data/vg
+uv run senorge vg-top-lists -output ./data/vg
 ```
-
 
